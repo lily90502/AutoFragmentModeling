@@ -95,6 +95,7 @@ class Fragment(Graph):
                 species_repr=None,
                 vertices=None,
                 multiplicity=-187,
+                reactive=True,
                 props=None):
         self.index = -1
         self.label = label
@@ -103,6 +104,7 @@ class Fragment(Graph):
         self.fingerprint = None
         self.props = props or {}
         self.multiplicity = multiplicity
+        self.reactive = reactive
 
     def __str__(self):
         """
@@ -235,6 +237,16 @@ class Fragment(Graph):
         for v in self.vertices:
             charge += v.charge
         return charge
+
+    def getChargeSpan(self):
+        """
+        Iterate through the atoms in the structure and calculate the charge span
+        on the overall molecule.
+        The charge span is a measure of the number of charge separations in a molecule.
+        """
+        abs_net_charge = abs(self.getNetCharge())
+        sum_of_abs_charges = sum([abs(atom.charge) for atom in self.vertices])
+        return (sum_of_abs_charges - abs_net_charge) / 2
 
     def merge(self, other):
         """
@@ -773,9 +785,9 @@ class Fragment(Graph):
             if atom_id_counter == 2**15:
                 atom_id_counter = -2**15
 
-    def generate_resonance_structures(self, keepIsomorphic=False):
+    def generate_resonance_structures(self, keep_isomorphic=False, filter_structures=True):
         """Returns a list of resonance structures of the fragment."""
-        return resonance.generate_resonance_structures(self, keepIsomorphic=keepIsomorphic)
+        return resonance.generate_resonance_structures(self, keep_isomorphic=keep_isomorphic, filter_structures=filter_structures)
 
     def isIdentical(self, other):
         """
