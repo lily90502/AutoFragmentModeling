@@ -94,6 +94,7 @@ class Fragment(Graph):
                 label='',
                 species_repr=None,
                 vertices=None,
+                symmetry=-1,
                 multiplicity=-187,
                 reactive=True,
                 props=None):
@@ -103,6 +104,7 @@ class Fragment(Graph):
         Graph.__init__(self, vertices)
         self.fingerprint = None
         self.props = props or {}
+        self.symmetryNumber = symmetry
         self.multiplicity = multiplicity
         self.reactive = reactive
 
@@ -318,6 +320,48 @@ class Fragment(Graph):
 
         return self
 
+    def from_SMILES_like_string_old(self, SMILES_like_string):
+
+        smiles_replace_dict = {
+            'R': 'Cl',
+            'L': '[Si]'
+        }
+
+        atom_replace_dict = {
+            'Cl': 'R',
+            'Si': 'L'
+        }
+
+        smiles = SMILES_like_string
+        for label_str, element in smiles_replace_dict.iteritems():
+            smiles = smiles.replace(label_str, element)
+
+        mol = Molecule().fromSMILES(smiles)
+        # convert mol to fragment object
+        final_vertices = []
+        for atom in mol.atoms:
+            element_symbol = atom.element.symbol
+            if element_symbol in atom_replace_dict:
+
+                cuttinglabel_name = atom_replace_dict[element_symbol]
+
+                cuttinglabel = CuttingLabel(name=cuttinglabel_name)
+                for bondedAtom, bond in atom.edges.iteritems():
+                    new_bond = Bond(bondedAtom, cuttinglabel, order=bond.order)
+
+                    bondedAtom.edges[cuttinglabel] = new_bond
+                    del bondedAtom.edges[atom]
+
+                    cuttinglabel.edges[bondedAtom] = new_bond
+                final_vertices.append(cuttinglabel)
+
+            else:
+                final_vertices.append(atom)
+
+        self.vertices = final_vertices
+
+        return self
+
     def isSubgraphIsomorphic(self, other, initialMap=None):
         """
         Fragment's subgraph isomorphism check is done by first creating 
@@ -356,6 +400,20 @@ class Fragment(Graph):
 
         result = Graph.isSubgraphIsomorphic(self.mol_repr, other, new_initial_map)
         return result
+
+    def isAtomInCycle(self, vertex):
+        """
+        Return :data:`True` if `atom` is in one or more cycles in the structure,
+        and :data:`False` if not.
+        """
+        return self.isVertexInCycle(vertex)
+
+    def isBondInCycle(self, edge):
+        """
+        Return :data:`True` if the bond between atoms `atom1` and `atom2`
+        is in one or more cycles in the graph, or :data:`False` if not.
+        """
+        return self.isEdgeInCycle(edge)
 
     def assign_representative_molecule(self):
 
@@ -1045,6 +1103,63 @@ class Fragment(Graph):
 
         return self
 
-# this variable is used to name atom IDs so that there are as few conflicts by 
+    def sortAtoms(self):
+        """
+        Sort the atoms in the graph. This can make certain operations, e.g.
+        the isomorphism functions, much more efficient.
+
+        This function orders atoms using several attributes in atom.getDescriptor().
+        Currently it sorts by placing heaviest atoms first and hydrogen atoms last.
+        Placing hydrogens last during sorting ensures that functions with hydrogen
+        removal work properly.
+        """
+
+        if not any(isinstance(vertex, CuttingLabel) for vertex in self.vertices):
+            for vertex in self.vertices:
+                if vertex.sortingLabel < 0:
+                    self.updateConnectivityValues()
+                    break
+            self.vertices.sort(key=lambda a: a.get_descriptor(), reverse=True)
+            for index, vertex in enumerate(self.vertices):
+                vertex.sortingLabel = index
+
+    def calculateCp0(self):
+        """
+        Return the value of the heat capacity at zero temperature in J/mol*K.
+        with representative molecule rather than Fragment
+        """
+        mol0, _ = self.get_representative_molecule('minimal')
+        return mol0.calculateCp0()
+
+    def calculateCpInf(self):
+        """
+        Return the value of the heat capacity at infinite temperature in J/mol*K.
+        """
+        mol0, _ = self.get_representative_molecule('minimal')
+        return mol0.calculateCpInf()
+
+
+    def getSymmetryNumber(self):
+        """
+        Returns the symmetry number of Fragment.
+        First checks whether the value is stored as an attribute of Fragment.
+        If not, it calls the calculateSymmetryNumber method.
+        """
+        if self.symmetryNumber == -1:
+            self.calculateSymmetryNumber()
+        return self.symmetryNumber
+
+
+    def calculateSymmetryNumber(self):
+        """
+        Return the symmetry number for the structure. The symmetry number
+        includes both external and internal modes.
+        """
+        from rmgpy.molecule.symmetry import calculateSymmetryNumber
+        self.updateConnectivityValues()  # for consistent results
+        self.symmetryNumber = calculateSymmetryNumber(self)
+        return self.symmetryNumber
+
+    # this variable is used to name atom IDs so that there are as few conflicts by
 # using the entire space of integer objects
 atom_id_counter = -2**15

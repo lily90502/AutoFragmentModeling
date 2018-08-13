@@ -22,7 +22,7 @@ def load_fragment_reactions_from_chemkin(chemkin_path,
         for line in f_in:
             if line.strip() and not line.startswith('#') and ':' in line:
                 label, smiles = [token.strip() for token in line.split(":")]
-                frag = Fragment(label=label).from_SMILES_like_string(smiles)
+                frag = Fragment(label=label).from_SMILES_like_string_old(smiles)
                 frag.assign_representative_species()
                 frag.species_repr.label = label
                 for prev_frag in fragments:
