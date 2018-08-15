@@ -353,6 +353,24 @@ def categorize_fragments_1_label(moles_dict):
 
 	return r_moles_1_label, remain_moles_1_label, rr_list_1_label
 
+def merge_fragments(sub_frag_labels):
+	# import a tuple of reattached fragments, do permutation to find the correct set and return it.
+
+	from itertools import permutations
+	import re
+	correct_reattach = []
+	mix_list = list(permutations(sub_frag_labels, len(sub_frag_labels)))
+	for unit in mix_list:
+		final = ''
+		for frag in unit:
+			final += frag
+		count = re.findall(r'RL', final)
+		if len(count) == len(sub_frag_labels) - 1:
+			merge_frag = re.sub('RL', '', final)
+			correct_reattach.append(merge_frag)
+
+	return correct_reattach
+
 
 class MonteCarloSimulator(Simulator):
 
